@@ -11,6 +11,7 @@ import {
   MapPin,
   Trash2,
   Plus,
+  AlertTriangle,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader, FormField, Input, Select, TagListInput } from "@/components/FormFields";
@@ -23,44 +24,62 @@ import {
 import { cn } from "@/components/Layout";
 
 export default function BasicInfoPage() {
-  const { schoolInfo, updateSchoolInfo, applyLastYearData } = useAppStore();
+  const { schoolInfo, updateSchoolInfo, applyLastYearData, setCurrentStage } =
+    useAppStore();
   const consistencyCheck = schoolInfo.consistencyCheck;
   const [showApplyModal, setShowApplyModal] = useState(false);
-  const [chargingItems, setChargingItems] = useState<ChargingItem[]>(
-    schoolInfo.chargingItems
-  );
+  const chargingItems = schoolInfo.chargingItems;
+
+  const getFieldIssue = (field: string) =>
+    consistencyCheck.issues.find((i) => i.field === field);
 
   const handleChange = (field: keyof typeof schoolInfo, value: any) => {
     updateSchoolInfo({ [field]: value } as Partial<typeof schoolInfo>);
   };
 
+  const handleStageChange = (value: string) => {
+    setCurrentStage(value as any);
+  };
+
   const addChargingItem = () => {
-    setChargingItems([
-      ...chargingItems,
-      {
-        id: `ci-new-${Date.now()}`,
-        name: "",
-        standard: "",
-        unit: "",
-        approvalNumber: "",
-      },
-    ]);
+    const newItem: ChargingItem = {
+      id: `ci-new-${Date.now()}`,
+      name: "",
+      standard: "",
+      unit: "",
+      approvalNumber: "",
+    };
+    updateSchoolInfo({ chargingItems: [...chargingItems, newItem] });
   };
 
   const removeChargingItem = (id: string) => {
-    setChargingItems(chargingItems.filter((c) => c.id !== id));
+    if (chargingItems.length <= 1) return;
+    updateSchoolInfo({
+      chargingItems: chargingItems.filter((c) => c.id !== id),
+    });
   };
 
-  const updateChargingItem = (id: string, field: keyof ChargingItem, value: string) => {
-    setChargingItems(
-      chargingItems.map((c) => (c.id === id ? { ...c, [field]: value } : c))
-    );
+  const updateChargingItem = (
+    id: string,
+    field: keyof ChargingItem,
+    value: string
+  ) => {
+    updateSchoolInfo({
+      chargingItems: chargingItems.map((c) =>
+      c.id === id ? { ...c, [field]: value } : c
+    ),
+    });
   };
 
   const handleSave = () => {
-    updateSchoolInfo({ chargingItems });
     alert("基础信息已保存！");
   };
+
+  const chargeIssue = getFieldIssue("chargingItems");
+  const licenseIssue = getFieldIssue("licenseNumber");
+  const legalIssue = getFieldIssue("legalPerson");
+  const legalIdIssue = getFieldIssue("legalPersonIdCard");
+  const areaIssue = getFieldIssue("buildingArea");
 
   return (
     <div className="space-y-6">
@@ -93,47 +112,61 @@ export default function BasicInfoPage() {
         ]}
       />
 
-      {!consistencyCheck.passed && schoolInfo.consistencyCheck.issues.length > 0 && (
-        <div className="card border-warning-300 bg-warning-50/40 p-5 animate-fade-in-up stagger-1">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-warning-100 flex items-center justify-center text-warning-600 shrink-0">
-              <ShieldCheck className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <div className="flex-1">
-              <div className="font-serif font-semibold text-warning-800">
-                一致性校验提示（{schoolInfo.consistencyCheck.issues.length} 项待确认）
+      {!consistencyCheck.passed &&
+        schoolInfo.consistencyCheck.issues.length > 0 && (
+          <div className="card border-warning-300 bg-warning-50/40 p-5 animate-fade-in-up stagger-1">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-warning-100 flex items-center justify-center text-warning-600 shrink-0">
+                <ShieldCheck className="w-5 h-5" strokeWidth={2} />
               </div>
-              <div className="mt-3 space-y-2">
-                {schoolInfo.consistencyCheck.issues.map((issue, idx) => (
-                  <div
-                    key={idx}
-                    className="text-sm bg-white/70 rounded-lg px-3 py-2.5 border border-warning-200"
-                  >
-                    <span className="font-medium text-slate-800">
-                      【{issue.fieldLabel}】
-                    </span>
-                    <span className="text-slate-500 mx-1">当前值</span>
-                    <span className="font-mono text-danger-600 line-through mx-1">
-                      {issue.currentValue}
-                    </span>
-                    <span className="text-slate-500 mx-1">许可证登记值</span>
-                    <span className="font-mono text-success-700 mx-1">
-                      {issue.expectedValue}
-                    </span>
-                    <p className="mt-1 text-xs text-warning-700 leading-relaxed">
-                      {issue.message}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 flex items-center gap-3 text-xs text-warning-600">
-                <CheckCircle2 className="w-4 h-4" />
-                如信息确有变更，请上传相关备案文件至「佐证材料—证照类」栏目后再行提交。
+              <div className="flex-1">
+                <div className="font-serif font-semibold text-warning-800">
+                  一致性校验提示（
+                  {schoolInfo.consistencyCheck.issues.length} 项待确认）
+                </div>
+                <div className="mt-3 space-y-2">
+                  {schoolInfo.consistencyCheck.issues.map((issue, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "text-sm bg-white/70 rounded-lg px-3 py-2.5 border",
+                        issue.severity === "error"
+                          ? "border-danger-200"
+                          : "border-warning-200"
+                      )}
+                    >
+                      <span className="font-medium text-slate-800">
+                        【{issue.fieldLabel}】
+                      </span>
+                      <span className="text-slate-500 mx-1">当前值</span>
+                      <span className="font-mono text-danger-600 line-through mx-1">
+                        {issue.currentValue}
+                      </span>
+                      <span className="text-slate-500 mx-1">备案值</span>
+                      <span className="font-mono text-success-700 mx-1">
+                        {issue.expectedValue}
+                      </span>
+                      <p
+                        className={cn(
+                          "mt-1 text-xs leading-relaxed",
+                          issue.severity === "error"
+                            ? "text-danger-600"
+                            : "text-warning-700"
+                        )}
+                      >
+                        {issue.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center gap-3 text-xs text-warning-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                  如信息确有变更，请上传相关备案文件至「佐证材料—证照类」栏目后再行提交。
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       <section className="card animate-fade-in-up stagger-1">
         <div className="card-header">
@@ -145,7 +178,9 @@ export default function BasicInfoPage() {
               <div className="font-serif font-semibold text-slate-800">
                 学校基本信息
               </div>
-              <div className="text-xs text-slate-500">School Basic Information</div>
+              <div className="text-xs text-slate-500">
+                School Basic Information
+              </div>
             </div>
           </div>
           <span className="badge bg-primary-50 text-primary-700 border border-primary-200">
@@ -163,7 +198,7 @@ export default function BasicInfoPage() {
           <FormField label="办学学段" required>
             <Select
               value={schoolInfo.schoolStage}
-              onChange={(e) => handleChange("schoolStage", e.target.value)}
+              onChange={(e) => handleStageChange(e.target.value)}
             >
               {SCHOOL_STAGE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -181,9 +216,16 @@ export default function BasicInfoPage() {
             />
           </FormField>
 
-          <FormField label="办学许可证号" required>
+          <FormField
+            label="办学许可证号"
+            required
+            error={licenseIssue?.message}
+          >
             <Input
-              className="font-mono tracking-wide"
+              className={cn(
+                "font-mono tracking-wide",
+                licenseIssue && "input-error"
+              )}
               value={schoolInfo.licenseNumber}
               onChange={(e) => handleChange("licenseNumber", e.target.value)}
             />
@@ -237,7 +279,9 @@ export default function BasicInfoPage() {
               <div className="font-serif font-semibold text-slate-800">
                 办学许可证与法人信息
               </div>
-              <div className="text-xs text-slate-500">School License & Legal Person</div>
+              <div className="text-xs text-slate-500">
+                School License & Legal Person
+              </div>
             </div>
           </div>
           <span className="badge bg-success-50 text-success-700 border border-success-200">
@@ -245,18 +289,29 @@ export default function BasicInfoPage() {
           </span>
         </div>
         <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="法人代表姓名" required>
+          <FormField
+            label="法人代表姓名"
+            required
+            warning={legalIssue?.message}
+          >
             <Input
+              className={cn(legalIssue && "input-error")}
               value={schoolInfo.legalPerson}
               onChange={(e) => handleChange("legalPerson", e.target.value)}
             />
           </FormField>
 
-          <FormField label="法人代表身份证号" required>
+          <FormField
+            label="法人代表身份证号"
+            required
+            error={legalIdIssue?.message}
+          >
             <Input
-              className="font-mono"
+              className={cn("font-mono", legalIdIssue && "input-error")}
               value={schoolInfo.legalPersonIdCard}
-              onChange={(e) => handleChange("legalPersonIdCard", e.target.value)}
+              onChange={(e) =>
+                handleChange("legalPersonIdCard", e.target.value)
+              }
             />
           </FormField>
 
@@ -278,8 +333,18 @@ export default function BasicInfoPage() {
 
           <div className="md:col-span-2 flex items-center gap-2 px-3 py-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-500">
             <FileText className="w-3.5 h-3.5 text-primary-500" />
-            许可证有效期限：{formatDate(schoolInfo.licenseValidFrom)} 至 {formatDate(schoolInfo.licenseValidTo)}
-            ，剩余 {(Math.ceil((new Date(schoolInfo.licenseValidTo).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 365)))} 年。
+            许可证有效期限：
+            {formatDate(schoolInfo.licenseValidFrom)} 至{" "}
+            {formatDate(schoolInfo.licenseValidTo)}，剩余{" "}
+            {
+              Math.ceil(
+                (new Date(schoolInfo.licenseValidTo).getTime() -
+                  Date.now()
+                ) /
+                  (1000 * 60 * 60 * 24 * 365)
+              )
+            }{" "}
+            年。
           </div>
         </div>
       </section>
@@ -294,7 +359,9 @@ export default function BasicInfoPage() {
               <div className="font-serif font-semibold text-slate-800">
                 校舍与收费备案
               </div>
-              <div className="text-xs text-slate-500">Campus Property & Charges</div>
+              <div className="text-xs text-slate-500">
+                Campus Property & Charges
+              </div>
             </div>
           </div>
           <span className="badge bg-warning-50 text-warning-700 border border-warning-200">
@@ -306,24 +373,18 @@ export default function BasicInfoPage() {
             <FormField
               label="校舍建筑面积"
               required
-              warning={
-                schoolInfo.consistencyCheck.issues.find(
-                  (i) => i.field === "buildingArea"
-                )?.message
-              }
+              error={areaIssue?.message}
             >
               <Input
                 type="number"
                 unit="㎡"
-                className={cn(
-                  "font-mono",
-                  schoolInfo.consistencyCheck.issues.find(
-                    (i) => i.field === "buildingArea"
-                  ) && "input-error"
-                )}
+                className={cn("font-mono", areaIssue && "input-error")}
                 value={schoolInfo.buildingArea}
                 onChange={(e) =>
-                  handleChange("buildingArea", Number(e.target.value) || 0)
+                  handleChange(
+                    "buildingArea",
+                    Number(e.target.value) || 0
+                  )
                 }
               />
             </FormField>
@@ -331,7 +392,9 @@ export default function BasicInfoPage() {
             <FormField label="校舍产权性质" required>
               <Select
                 value={schoolInfo.propertyType}
-                onChange={(e) => handleChange("propertyType", e.target.value)}
+                onChange={(e) =>
+                  handleChange("propertyType", e.target.value)
+                }
               >
                 {PROPERTY_TYPE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -345,7 +408,9 @@ export default function BasicInfoPage() {
           <div className="pt-2">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="label-base label-required mb-0">收费项目备案</div>
+                <div className="label-base label-required mb-0">
+                  收费项目备案
+                </div>
                 <div className="text-xs text-slate-500 mt-0.5">
                   请填写所有向学生收取的费用项目，须与发改委备案文件保持一致。
                 </div>
@@ -355,14 +420,28 @@ export default function BasicInfoPage() {
                 新增收费项
               </button>
             </div>
+            {chargeIssue && (
+              <div className="mb-3 px-3 py-2 rounded-lg bg-warning-50 border border-warning-200 text-xs text-warning-700 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{chargeIssue.message}</span>
+            </div>
+            )}
             <div className="overflow-hidden rounded-xl border border-slate-200">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr className="text-xs text-slate-500">
-                    <th className="px-4 py-2.5 text-left font-medium w-1/4">收费项目名称</th>
-                    <th className="px-4 py-2.5 text-left font-medium w-1/5">收费标准</th>
-                    <th className="px-4 py-2.5 text-left font-medium w-1/6">计费单位</th>
-                    <th className="px-4 py-2.5 text-left font-medium w-1/4">备案/批准文号</th>
+                    <th className="px-4 py-2.5 text-left font-medium w-1/4">
+                      收费项目名称
+                    </th>
+                    <th className="px-4 py-2.5 text-left font-medium w-1/5">
+                      收费标准
+                    </th>
+                    <th className="px-4 py-2.5 text-left font-medium w-1/6">
+                      计费单位
+                    </th>
+                    <th className="px-4 py-2.5 text-left font-medium w-1/4">
+                      备案/批准文号
+                    </th>
                     <th className="px-4 py-2.5 w-12"></th>
                   </tr>
                 </thead>
@@ -386,7 +465,11 @@ export default function BasicInfoPage() {
                         <input
                           value={item.standard}
                           onChange={(e) =>
-                            updateChargingItem(item.id, "standard", e.target.value)
+                            updateChargingItem(
+                              item.id,
+                              "standard",
+                              e.target.value
+                            )
                           }
                           placeholder="18000"
                           className="w-full input-base !py-1.5 text-sm font-mono"
@@ -406,7 +489,11 @@ export default function BasicInfoPage() {
                         <input
                           value={item.approvalNumber}
                           onChange={(e) =>
-                            updateChargingItem(item.id, "approvalNumber", e.target.value)
+                            updateChargingItem(
+                              item.id,
+                              "approvalNumber",
+                              e.target.value
+                            )
                           }
                           placeholder="浦发改价[2023]89号"
                           className="w-full input-base !py-1.5 text-sm font-mono"
@@ -462,7 +549,9 @@ export default function BasicInfoPage() {
                 <div className="font-medium mb-1">请确认以下操作</div>
                 <p className="text-primary-700 leading-relaxed">
                   系统将把 2024 年度已通过备案的学校基础信息自动填充至本年度表单中。
-                  <strong>关键字段（学校名称、信用代码、许可证号等）如需变更，需要同步上传相关证明文件。</strong>
+                  <strong>
+                    关键字段（学校名称、信用代码、许可证号等）如需变更，需要同步上传相关证明文件。
+                  </strong>
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">

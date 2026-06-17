@@ -3,350 +3,121 @@ import { useState, useRef, useMemo } from "react";
 import {
   Upload,
   FileText,
-  Users,
-  ShieldCheck,
-  Wallet,
-  FolderOpen,
-  File,
-  FileImage,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
+  Download,
   Trash2,
   Eye,
-  Download,
-  Plus,
+  FolderOpen,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  X,
+  File,
+  FileImage,
+  FileSpreadsheet,
+  FileJson,
+  XCircle,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/FormFields";
-import { formatFileSize, MaterialCategory as TMaterialCategory, MaterialFile } from "@/types";
 import { cn } from "@/components/Layout";
-
-const CATEGORY_ICONS: Record<string, any> = {
-  m1: FileText,
-  m2: Wallet,
-  m3: Users,
-  m4: ShieldCheck,
-  m5: FolderOpen,
-};
-
-const FILE_STATUS_CONFIG: Record<
-  MaterialFile["status"],
-  { label: string; icon: any; color: string }
-> = {
-  uploaded: { label: "已上传", icon: File, color: "text-slate-500 bg-slate-100" },
-  checking: {
-    label: "审核中",
-    icon: Clock,
-    color: "text-warning-600 bg-warning-100",
-  },
-  passed: {
-    label: "审核通过",
-    icon: CheckCircle2,
-    color: "text-success-600 bg-success-100",
-  },
-  rejected: {
-    label: "被退回",
-    icon: AlertCircle,
-    color: "text-danger-600 bg-danger-100",
-  },
-};
-
-function FileIconByType({ type }: { type: string }) {
-  if (type.startsWith("image/")) {
-    return <FileImage className="w-5 h-5 text-warning-600" />;
-  }
-  if (type.includes("pdf")) {
-    return <File className="w-5 h-5 text-danger-500" />;
-  }
-  if (type.includes("excel") || type.includes("sheet")) {
-    return <File className="w-5 h-5 text-success-600" />;
-  }
-  return <File className="w-5 h-5 text-primary-600" />;
-}
-
-function UploadDropzone({
-  category,
-  onUpload,
-}: {
-  category: TMaterialCategory;
-  onUpload: (files: FileList) => void;
-}) {
-  const [isDragging, setIsDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        setIsDragging(true);
-      }}
-      onDragLeave={() => setIsDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setIsDragging(false);
-        if (e.dataTransfer.files.length > 0) {
-          onUpload(e.dataTransfer.files);
-        }
-      }}
-      onClick={() => inputRef.current?.click()}
-      className={cn(
-        "group relative cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all duration-300",
-        isDragging
-          ? "border-primary-500 bg-primary-50 scale-[1.01] shadow-card-hover"
-          : "border-slate-300 bg-slate-50/50 hover:border-primary-400 hover:bg-primary-50/40"
-      )}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-        className="sr-only"
-        onChange={(e) =>
-          e.target.files && e.target.files.length > 0 && onUpload(e.target.files)
-        }
-      />
-      <div
-        className={cn(
-          "mx-auto w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300",
-          isDragging
-            ? "bg-primary-600 text-white shadow-card scale-110"
-            : "bg-white text-primary-600 shadow-card group-hover:bg-primary-600 group-hover:text-white group-hover:shadow-card-hover"
-        )}
-      >
-        <Upload className="w-7 h-7" strokeWidth={1.8} />
-      </div>
-      <div className="mt-4 font-medium text-slate-800">
-        拖拽文件到此处或
-        <span className="text-primary-600 mx-1 font-semibold">点击选择文件</span>
-      </div>
-      <p className="mt-1.5 text-xs text-slate-500">
-        当前分类：{category.name} · 支持 PDF / JPG / PNG / Word / Excel · 单文件 ≤ 20MB
-      </p>
-    </div>
-  );
-}
-
-function FileItem({
-  file,
-  categoryId,
-  onRemove,
-}: {
-  file: MaterialFile;
-  categoryId: string;
-  onRemove: (categoryId: string, fileId: string) => void;
-}) {
-  const cfg = FILE_STATUS_CONFIG[file.status];
-  const StatusIcon = cfg.icon;
-  return (
-    <div className="group flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:border-primary-200 hover:bg-primary-50/30 hover:shadow-card transition-all duration-200 animate-fade-in-up">
-      <div className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-white flex items-center justify-center shadow-sm shrink-0">
-        <FileIconByType type={file.type} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-800 truncate">
-            {file.name}
-          </span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-              cfg.color
-            )}
-          >
-            <StatusIcon className="w-3 h-3" strokeWidth={2.4} />
-            {cfg.label}
-          </span>
-        </div>
-        <div className="mt-0.5 flex items-center gap-3 text-[11px] text-slate-500">
-          <span className="font-mono">{formatFileSize(file.size)}</span>
-          <span>·</span>
-          <span>{file.uploadTime}</span>
-          <span>·</span>
-          <span>{file.uploader}</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          className="p-2 rounded-lg hover:bg-white text-slate-400 hover:text-primary-600 transition-colors"
-          title="预览"
-        >
-          <Eye className="w-4 h-4" strokeWidth={1.8} />
-        </button>
-        <button
-          className="p-2 rounded-lg hover:bg-white text-slate-400 hover:text-success-600 transition-colors"
-          title="下载"
-        >
-          <Download className="w-4 h-4" strokeWidth={1.8} />
-        </button>
-        <button
-          onClick={() => onRemove(categoryId, file.id)}
-          className="p-2 rounded-lg hover:bg-white text-slate-400 hover:text-danger-600 transition-colors"
-          title="删除"
-        >
-          <Trash2 className="w-4 h-4" strokeWidth={1.8} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function CategoryCard({
-  category,
-  isExpanded,
-  onToggle,
-  onUpload,
-  onRemove,
-  idx,
-}: {
-  category: TMaterialCategory;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onUpload: (files: FileList) => void;
-  onRemove: (cid: string, fid: string) => void;
-  idx: number;
-}) {
-  const Icon = CATEGORY_ICONS[category.id] || FolderOpen;
-  const hasMissing =
-    category.required && category.uploadedCount < category.requiredCount;
-  const missing = Math.max(0, category.requiredCount - category.uploadedCount);
-
-  return (
-    <div
-      className={cn(
-        "card overflow-hidden transition-all duration-300",
-        hasMissing && "border-danger-200 shadow-card-hover"
-      )}
-      style={{ animation: `fade-in-up 0.5s ease-out ${idx * 50}ms both` }}
-    >
-      <button
-        onClick={onToggle}
-        className="w-full card-header !py-4 hover:bg-slate-50 transition-colors text-left"
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className={cn(
-              "relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-card",
-              hasMissing
-                ? "bg-gradient-to-br from-danger-500 to-danger-600 text-white"
-                : category.uploadedCount >= category.requiredCount && category.required
-                ? "bg-gradient-to-br from-success-500 to-success-600 text-white"
-                : "bg-gradient-to-br from-primary-500 to-primary-600 text-white"
-            )}
-          >
-            <Icon className="w-5 h-5" strokeWidth={2} />
-            {category.files.length > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 rounded-full bg-white text-[10px] font-bold text-slate-700 shadow-sm border border-slate-200 flex items-center justify-center">
-                {category.files.length}
-              </span>
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-serif font-semibold text-slate-800">
-                {category.name}
-              </span>
-              {category.required ? (
-                <span className="badge bg-primary-50 text-primary-700 border border-primary-200">
-                  必传
-                </span>
-              ) : (
-                <span className="badge bg-slate-50 text-slate-600 border border-slate-200">
-                  选传
-                </span>
-              )}
-              {hasMissing && (
-                <span className="badge bg-danger-50 text-danger-700 border border-danger-200 animate-pulse">
-                  缺 {missing} 项
-                </span>
-              )}
-            </div>
-            <p className="mt-0.5 text-xs text-slate-500 max-w-xl truncate">
-              {category.description}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="text-sm font-mono font-semibold text-slate-800">
-              {category.uploadedCount}
-              <span className="text-slate-400">/{category.requiredCount || "∞"}</span>
-            </div>
-            <div className="text-[10px] text-slate-500">已上传</div>
-          </div>
-          <div className="w-28 hidden sm:block">
-            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-500",
-                  hasMissing
-                    ? "bg-gradient-to-r from-danger-400 to-danger-500"
-                    : "bg-gradient-to-r from-success-400 to-success-600"
-                )}
-                style={{
-                  width: category.requiredCount
-                    ? `${Math.min(100, (category.uploadedCount / category.requiredCount) * 100)}%`
-                    : `${Math.min(100, category.uploadedCount * 20)}%`,
-                }}
-              />
-            </div>
-          </div>
-          <Plus
-            className={cn(
-              "w-5 h-5 text-slate-400 transition-transform duration-300",
-              isExpanded && "rotate-45"
-            )}
-            strokeWidth={1.8}
-          />
-        </div>
-      </button>
-      {isExpanded && (
-        <div className="card-body !pt-0 space-y-5 border-t border-slate-100 animate-fade-in">
-          <UploadDropzone category={category} onUpload={onUpload} />
-          {category.files.length > 0 && (
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-medium text-slate-500">
-                  已上传文件（{category.files.length}）
-                </div>
-              </div>
-              {category.files.map((f) => (
-                <FileItem
-                  key={f.id}
-                  file={f}
-                  categoryId={category.id}
-                  onRemove={onRemove}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+import { MaterialFile, formatFileSize } from "@/types";
 
 export default function MaterialsPage() {
   const { materials, addMaterialFile, removeMaterialFile } = useAppStore();
-  const [expanded, setExpanded] = useState<string>("m1");
 
-  const summary = useMemo(() => {
-    let required = 0;
-    let uploaded = 0;
+  const [previewFile, setPreviewFile] = useState<MaterialFile | null>(null);
+  const [draggedOver, setDraggedOver] = useState<string | null>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const { totalMaterialCount, totalMissingCount, totalUploaded } = useMemo(() => {
+    let total = 0;
+    let missing = 0;
     for (const m of materials) {
-      required += m.requiredCount || 0;
-      uploaded += Math.min(m.uploadedCount, m.requiredCount || m.uploadedCount);
+      if (m.required) {
+        total += m.requiredCount;
+        missing += Math.max(0, m.requiredCount - m.uploadedCount);
+      }
     }
-    const missing = Math.max(0, required - uploaded);
-    const total = materials.reduce((acc, m) => acc + m.files.length, 0);
-    return { required, uploaded, missing, total, percent: required ? Math.round((uploaded / required) * 100) : 0 };
+    return {
+      totalMaterialCount: total,
+      totalMissingCount: missing,
+      totalUploaded: total - missing,
+    };
   }, [materials]);
 
-  const handleUpload = (categoryId: string, files: FileList) => {
-    for (let i = 0; i < files.length; i++) {
-      addMaterialFile(categoryId, files[i]);
+  const handleFileUpload = (categoryId: string, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach((file) => {
+      addMaterialFile(categoryId, file);
+    });
+  };
+
+  const getFileIcon = (type: string) => {
+    if (type.startsWith("image/")) return <FileImage className="w-5 h-5" />;
+    if (type.includes("pdf")) return <FileText className="w-5 h-5" />;
+    if (type.includes("sheet") || type.includes("excel"))
+      return <FileSpreadsheet className="w-5 h-5" />;
+    if (type.includes("json")) return <FileJson className="w-5 h-5" />;
+    return <File className="w-5 h-5" />;
+  };
+
+  const getStatusBadge = (status: string) => {
+    const config: Record<string, { label: string; className: string }> = {
+      uploaded: {
+        label: "已上传",
+        className: "bg-success-50 text-success-700 border-success-200",
+      },
+      checking: {
+        label: "审核中",
+        className: "bg-primary-50 text-primary-700 border-primary-200",
+      },
+      passed: {
+        label: "已通过",
+        className: "bg-success-50 text-success-700 border-success-200",
+      },
+      rejected: {
+        label: "已退回",
+        className: "bg-danger-50 text-danger-700 border-danger-200",
+      },
+      pending: {
+        label: "待上传",
+        className: "bg-slate-50 text-slate-500 border-slate-200",
+      },
+      expired: {
+        label: "已过期",
+        className: "bg-warning-50 text-warning-700 border-warning-200",
+      },
+    };
+    const cfg = config[status] || config.pending;
+    return (
+      <span
+        className={cn(
+          "text-xs px-2 py-0.5 rounded-md border font-medium",
+          cfg.className
+        )}
+      >
+        {cfg.label}
+      </span>
+    );
+  };
+
+  const handleDownload = (file: MaterialFile) => {
+    const blob = new Blob(["[模拟文件内容] " + file.name], {
+      type: file.type,
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRemove = (categoryId: string, fileId: string, fileName: string) => {
+    if (confirm(`确定要删除文件「${fileName}」吗？删除后需要重新上传。`)) {
+      removeMaterialFile(categoryId, fileId);
     }
   };
 
@@ -354,54 +125,16 @@ export default function MaterialsPage() {
     <div className="space-y-6">
       <PageHeader
         icon={<Upload className="w-6 h-6" strokeWidth={2} />}
-        title="佐证材料上传"
-        subtitle="按分类上传年检所需的各类佐证材料，包括证照、财务、师资、安保等。必传材料上传完成后方可提交。支持拖拽批量上传。"
+        title="材料上传"
+        subtitle="请按分类上传年检所需的全部证明材料。支持拖拽上传，PDF/Word/Excel/JPG/PNG 格式均可，单文件不超过 50MB。"
         extra={
-          <div className="card !shadow-none border-0 bg-gradient-to-br from-primary-50 to-success-50 p-4 border border-primary-100">
-            <div className="flex items-center gap-4">
-              <div className="relative w-14 h-14 shrink-0">
-                <svg viewBox="0 0 36 36" className="-rotate-90">
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="15.915"
-                    fill="none"
-                    stroke="white"
-                    strokeWidth="3"
-                  />
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r="15.915"
-                    fill="none"
-                    stroke="#2563eb"
-                    strokeWidth="3"
-                    strokeDasharray={`${summary.percent}, 100`}
-                    strokeLinecap="round"
-                    className="transition-all duration-700"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold text-primary-700 font-mono">
-                    {summary.percent}%
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-0.5 text-xs">
-                <div className="text-slate-600">
-                  必传材料
-                  <span className="font-mono font-bold text-slate-800 mx-1">
-                    {summary.uploaded}
-                  </span>
-                  / {summary.required}
-                </div>
-                {summary.missing > 0 && (
-                  <div className="text-danger-600 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    尚缺 {summary.missing} 项
-                  </div>
-                )}
-                <div className="text-slate-500">共上传 {summary.total} 个文件</div>
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <div className="text-xs text-slate-500">已上传 / 总计</div>
+              <div className="font-mono font-semibold text-slate-800">
+                {totalUploaded}
+                <span className="text-slate-400 mx-0.5">/</span>
+                {totalMaterialCount}
               </div>
             </div>
           </div>
@@ -416,29 +149,385 @@ export default function MaterialsPage() {
         ]}
       />
 
-      <div className="space-y-4">
-        {materials.map((m, idx) => (
-          <CategoryCard
-            key={m.id}
-            category={m}
-            idx={idx}
-            isExpanded={expanded === m.id}
-            onToggle={() =>
-              setExpanded((prev) => (prev === m.id ? "" : m.id))
-            }
-            onUpload={(files) => handleUpload(m.id, files)}
-            onRemove={removeMaterialFile}
-          />
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-up">
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-success-100 text-success-700 flex items-center justify-center">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">已上传材料</div>
+            <div className="font-serif text-xl font-semibold text-slate-800">
+              {totalUploaded} 份
+            </div>
+          </div>
+        </div>
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-warning-100 text-warning-700 flex items-center justify-center">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">待上传材料</div>
+            <div className="font-serif text-xl font-semibold text-slate-800">
+              {totalMissingCount} 份
+            </div>
+          </div>
+        </div>
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">上传完成度</div>
+            <div className="font-serif text-xl font-semibold text-slate-800">
+              {totalMaterialCount > 0
+                ? Math.round((totalUploaded / totalMaterialCount) * 100)
+                : 0}
+              %
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 pb-4 no-print">
-        <button className="btn-secondary">保存草稿</button>
-        <button className="btn-primary px-6 py-2.5">
-          完成上传，进入校内审核
-          <X className="w-0 h-0" />
-        </button>
+      <div className="space-y-5">
+        {materials.map((cat, catIdx) => {
+          const uploaded = cat.uploadedCount;
+          const missing = Math.max(0, cat.requiredCount - uploaded);
+          const progress =
+            cat.requiredCount > 0
+              ? Math.min(100, (uploaded / cat.requiredCount) * 100)
+              : cat.files.length > 0
+              ? 100
+              : 0;
+          const isMissing = missing > 0 && cat.required;
+
+          return (
+            <section
+              key={cat.id}
+              className={cn(
+                "card overflow-hidden transition-all duration-300",
+                draggedOver === cat.id &&
+                  "ring-2 ring-primary-400 ring-offset-2",
+                isMissing && "border-warning-300"
+              )}
+              style={{
+                animationDelay: `${catIdx * 60}ms`,
+                animation: "fadeInUp 0.5s ease-out both",
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDraggedOver(cat.id);
+              }}
+              onDragLeave={() => setDraggedOver(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDraggedOver(null);
+                handleFileUpload(cat.id, e.dataTransfer.files);
+              }}
+            >
+              <div className="card-header flex-wrap gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center",
+                      isMissing
+                        ? "bg-warning-100 text-warning-700"
+                        : "bg-primary-100 text-primary-700"
+                    )}
+                  >
+                    {isMissing ? (
+                      <AlertCircle className="w-4 h-4" />
+                    ) : (
+                      <FolderOpen className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-serif font-semibold text-slate-800 flex items-center gap-2">
+                      {cat.name}
+                      {!cat.required && (
+                        <span className="text-xs text-slate-400 font-normal">
+                          （选传）
+                        </span>
+                      )}
+                      {isMissing && (
+                        <span className="text-xs text-warning-600 font-normal">
+                          缺 {missing} 份
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500">{cat.description}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right text-xs text-slate-500">
+                    {uploaded}/{cat.requiredCount || cat.files.length} 份
+                  </div>
+                  <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        isMissing
+                          ? "bg-gradient-to-r from-warning-400 to-warning-500"
+                          : "bg-gradient-to-r from-success-400 to-success-500"
+                      )}
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <button
+                    onClick={() =>
+                      fileInputRefs.current[cat.id]?.click()
+                    }
+                    className="btn-primary !py-1.5 !px-3 text-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    上传
+                  </button>
+                  <input
+                    ref={(el) => (fileInputRefs.current[cat.id] = el)}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      handleFileUpload(cat.id, e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="card-body pt-0">
+                {cat.files.length === 0 ? (
+                  <div
+                    className={cn(
+                      "border-2 border-dashed rounded-xl p-6 text-center transition-colors",
+                      draggedOver === cat.id
+                        ? "border-primary-400 bg-primary-50"
+                        : "border-slate-200 bg-slate-50/50"
+                    )}
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center mx-auto mb-3">
+                      <Upload
+                        className={cn(
+                          "w-5 h-5 transition-colors",
+                          draggedOver === cat.id
+                            ? "text-primary-500"
+                            : "text-slate-400"
+                        )}
+                      />
+                    </div>
+                    <div className="text-sm text-slate-600 mb-1">
+                      拖拽文件到此处，或
+                      <button
+                        onClick={() =>
+                          fileInputRefs.current[cat.id]?.click()
+                        }
+                        className="text-primary-600 hover:text-primary-700 font-medium mx-0.5"
+                      >
+                        点击选择文件
+                      </button>
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      支持 PDF / Word / Excel / 图片，单文件不超过 50MB
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {cat.files.map((file) => (
+                      <div
+                        key={file.id}
+                        className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50 transition-all group"
+                      >
+                        <div
+                          className={cn(
+                            "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                            file.type.startsWith("image/")
+                              ? "bg-pink-50 text-pink-600"
+                              : file.type.includes("pdf")
+                              ? "bg-red-50 text-red-600"
+                              : "bg-primary-50 text-primary-600"
+                          )}
+                        >
+                          {getFileIcon(file.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-slate-800 truncate">
+                            {file.name}
+                          </div>
+                          <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="font-mono">
+                              {formatFileSize(file.size)}
+                            </span>
+                            <span className="text-slate-300">•</span>
+                            <span>{file.uploadTime}</span>
+                            <span className="text-slate-300">•</span>
+                            <span>{file.uploader}</span>
+                            {getStatusBadge(file.status)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => setPreviewFile(file)}
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700"
+                            title="预览"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDownload(file)}
+                            className="p-2 rounded-lg hover:bg-primary-50 text-slate-500 hover:text-primary-600"
+                            title="下载"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleRemove(cat.id, file.id, file.name)
+                            }
+                            className="p-2 rounded-lg hover:bg-danger-50 text-slate-500 hover:text-danger-600"
+                            title="删除"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {isMissing && (
+                      <div className="mt-3 p-3 rounded-xl bg-warning-50 border border-warning-200 flex items-start gap-2.5">
+                        <AlertCircle className="w-4 h-4 text-warning-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-warning-700">
+                          还需上传 <strong>{missing} 份</strong> 材料才能满足本类别的最低要求。
+                          请检查材料清单并补充上传。
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          );
+        })}
       </div>
+
+      <div className="flex items-center justify-between pb-4">
+        <div className="text-xs text-slate-500">
+          <XCircle className="w-3.5 h-3.5 inline mr-1 text-danger-400" />
+          缺少 {totalMissingCount} 份必传材料，请在提交前完成上传
+        </div>
+        <div className="flex items-center gap-2 no-print">
+          <button className="btn-secondary">返回上一步</button>
+          <button
+            className={cn(
+              "btn-primary px-6 py-2.5",
+              totalMissingCount > 0 && "opacity-50 cursor-not-allowed"
+            )}
+            disabled={totalMissingCount > 0}
+          >
+            保存并进入下一步
+          </button>
+        </div>
+      </div>
+
+      {previewFile && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="card w-full max-w-lg shadow-paper animate-fade-in-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="card-header">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center">
+                  {getFileIcon(previewFile.type)}
+                </div>
+                <div>
+                  <div className="font-serif font-semibold text-slate-800">
+                    文件预览
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {previewFile.name}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewFile(null)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="card-body space-y-4">
+              <div className="aspect-video rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center mx-auto mb-2">
+                    {getFileIcon(previewFile.type)}
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    {previewFile.type.startsWith("image/")
+                      ? "图片预览"
+                      : "文件预览不可用"}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    可下载后在本地查看
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="text-xs text-slate-500 mb-1">文件名</div>
+                  <div className="font-medium text-slate-800 truncate">
+                    {previewFile.name}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="text-xs text-slate-500 mb-1">文件大小</div>
+                  <div className="font-mono text-slate-800">
+                    {formatFileSize(previewFile.size)}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="text-xs text-slate-500 mb-1">文件类型</div>
+                  <div className="text-slate-800 truncate">
+                    {previewFile.type || "未知类型"}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="text-xs text-slate-500 mb-1">上传时间</div>
+                  <div className="text-slate-800">{previewFile.uploadTime}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="text-xs text-slate-500 mb-1">上传人</div>
+                  <div className="text-slate-800">{previewFile.uploader}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="text-xs text-slate-500 mb-1">审核状态</div>
+                  <div>{getStatusBadge(previewFile.status)}</div>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/50 rounded-b-xl">
+              <button
+                onClick={() => setPreviewFile(null)}
+                className="btn-secondary"
+              >
+                关闭
+              </button>
+              <button
+                onClick={() => handleDownload(previewFile)}
+                className="btn-primary"
+              >
+                <Download className="w-4 h-4" />
+                下载文件
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
