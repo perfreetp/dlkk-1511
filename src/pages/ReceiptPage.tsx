@@ -13,6 +13,11 @@ import {
   Award,
   ChevronRight,
   Star,
+  Camera,
+  BarChart3,
+  FolderCheck,
+  ClipboardList,
+  AlertTriangle,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/FormFields";
@@ -101,7 +106,7 @@ function HistoryCard({ record }: { record: HistoryRecord }) {
 }
 
 export default function ReceiptPage() {
-  const { receipt, schoolInfo } = useAppStore();
+  const { receipt, schoolInfo, submissionSnapshot } = useAppStore();
   const [showHistory, setShowHistory] = useState(false);
 
   const resultCfg = INSPECTION_RESULT_MAP[receipt.result];
@@ -402,6 +407,240 @@ export default function ReceiptPage() {
               {new Date().toLocaleString("zh-CN")} -
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="card overflow-hidden animate-fade-in-up stagger-1 no-print">
+        <div className="card-header !pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center shadow-card">
+              <Camera className="w-4.5 h-4.5" strokeWidth={2} />
+            </div>
+            <div className="text-left">
+              <div className="font-serif font-semibold text-slate-800">
+                申报提交快照
+              </div>
+              <div className="text-xs text-slate-500">
+                {submissionSnapshot
+                  ? `快照时间：${submissionSnapshot.snapshotTime}`
+                  : "尚未提交申报，暂无快照数据"}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="card-body pt-0">
+          {!submissionSnapshot ? (
+            <div className="py-12 text-center">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <Camera className="w-8 h-8 text-slate-400" strokeWidth={1.8} />
+              </div>
+              <div className="text-slate-500 font-medium">尚未提交申报，暂无快照数据</div>
+              <div className="text-xs text-slate-400 mt-1">完成申报提交后将自动生成快照</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-primary-50/30 p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center shadow-card">
+                    <ClipboardList className="w-5 h-5" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div className="font-serif font-semibold text-slate-800">基础信息摘要</div>
+                    <div className="text-xs text-slate-500">申报时提交的基础信息</div>
+                  </div>
+                </div>
+                <div className="space-y-2.5 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500 shrink-0">学校名称</span>
+                    <span className="text-slate-800 font-medium text-right">{submissionSnapshot.schoolInfo.schoolName}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500 shrink-0">办学学段</span>
+                    <span className="text-slate-800 font-medium">{SCHOOL_STAGE_OPTIONS.find((s) => s.value === submissionSnapshot.schoolInfo.schoolStage)?.label || "-"}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500 shrink-0">许可证号</span>
+                    <span className="text-slate-800 font-mono text-xs text-right">{submissionSnapshot.schoolInfo.licenseNumber}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500 shrink-0">法人代表</span>
+                    <span className="text-slate-800 font-medium">{submissionSnapshot.schoolInfo.legalPerson}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500 shrink-0">校舍面积</span>
+                    <span className="text-slate-800 font-medium">{submissionSnapshot.schoolInfo.buildingArea} ㎡</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500 shrink-0">收费项目</span>
+                    <span className="text-slate-800 font-medium">{submissionSnapshot.schoolInfo.chargingItemCount} 项</span>
+                  </div>
+                  <div className="flex justify-between gap-3 pt-2 border-t border-dashed border-slate-200">
+                    <span className="text-slate-500 shrink-0">一致性校验</span>
+                    {submissionSnapshot.schoolInfo.consistencyPassed ? (
+                      <span className="inline-flex items-center gap-1 text-success-700 font-medium">
+                        <CheckCircle2 className="w-4 h-4" strokeWidth={2.2} />
+                        通过
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-danger-700 font-medium">
+                        <AlertTriangle className="w-4 h-4" strokeWidth={2.2} />
+                        有差异（{submissionSnapshot.schoolInfo.consistencyIssues}项）
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-warning-50/30 p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warning-500 to-warning-600 text-white flex items-center justify-center shadow-card">
+                    <BarChart3 className="w-5 h-5" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div className="font-serif font-semibold text-slate-800">指标完成情况</div>
+                    <div className="text-xs text-slate-500">年检指标填报统计</div>
+                  </div>
+                </div>
+                <div className="flex items-end gap-4 mb-4">
+                  <div>
+                    <div className="font-serif font-black text-5xl tracking-tight text-warning-600">
+                      {submissionSnapshot.indicators.completionRate}
+                      <span className="text-2xl ml-0.5">%</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">整体完成率</div>
+                  </div>
+                  <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-warning-400 to-warning-500 rounded-full transition-all duration-500"
+                      style={{ width: `${submissionSnapshot.indicators.completionRate}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-dashed border-slate-200">
+                  <div className="text-center">
+                    <div className="font-serif font-bold text-xl text-slate-800">{submissionSnapshot.indicators.totalFields}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">总字段数</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-serif font-bold text-xl text-success-600">{submissionSnapshot.indicators.filledFields}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">已填写</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-serif font-bold text-xl text-danger-600">{submissionSnapshot.indicators.errorFields}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">必填缺失</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-success-50/30 p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-success-500 to-success-600 text-white flex items-center justify-center shadow-card">
+                    <FolderCheck className="w-5 h-5" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div className="font-serif font-semibold text-slate-800">材料清单概览</div>
+                    <div className="text-xs text-slate-500">佐证材料上传情况</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="rounded-lg bg-white/60 border border-slate-200 p-3">
+                    <div className="text-xs text-slate-500">总分类数</div>
+                    <div className="font-serif font-bold text-lg text-slate-800 mt-0.5">{submissionSnapshot.materials.totalCategories}</div>
+                  </div>
+                  <div className="rounded-lg bg-white/60 border border-slate-200 p-3">
+                    <div className="text-xs text-slate-500">必传分类</div>
+                    <div className="font-serif font-bold text-lg text-slate-800 mt-0.5">{submissionSnapshot.materials.requiredCategories}</div>
+                  </div>
+                  <div className="rounded-lg bg-white/60 border border-slate-200 p-3">
+                    <div className="text-xs text-slate-500">已上传 / 必传</div>
+                    <div className="font-serif font-bold text-lg mt-0.5">
+                      <span className="text-success-600">{submissionSnapshot.materials.totalUploaded}</span>
+                      <span className="text-slate-400 mx-1">/</span>
+                      <span className="text-slate-800">{submissionSnapshot.materials.totalRequired}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white/60 border border-slate-200 p-3">
+                    <div className="text-xs text-slate-500">缺项数量</div>
+                    <div className={`font-serif font-bold text-lg mt-0.5 ${submissionSnapshot.materials.missingCount > 0 ? "text-danger-600" : "text-success-600"}`}>
+                      {submissionSnapshot.materials.missingCount}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2 pt-3 border-t border-dashed border-slate-200">
+                  {submissionSnapshot.materials.categoryList.map((cat, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-slate-600 truncate">{cat.name}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${cat.required > 0 && cat.uploaded >= cat.required ? "bg-success-500" : cat.uploaded > 0 ? "bg-warning-500" : "bg-slate-300"}`}
+                            style={{ width: `${cat.required > 0 ? Math.min(100, Math.round((cat.uploaded / cat.required) * 100)) : cat.uploaded > 0 ? 100 : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-mono text-slate-600 w-14 text-right">
+                          {cat.uploaded}/{cat.required || "-"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={`rounded-xl border p-5 ${
+                submissionSnapshot.preAudit.overallPassed
+                  ? "border-success-200 bg-gradient-to-br from-white to-success-50/40"
+                  : "border-danger-200 bg-gradient-to-br from-white to-danger-50/40"
+              }`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-10 h-10 rounded-xl text-white flex items-center justify-center shadow-card ${
+                    submissionSnapshot.preAudit.overallPassed
+                      ? "bg-gradient-to-br from-success-500 to-success-600"
+                      : "bg-gradient-to-br from-danger-500 to-danger-600"
+                  }`}>
+                    {submissionSnapshot.preAudit.overallPassed ? (
+                      <CheckCircle2 className="w-5 h-5" strokeWidth={2} />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5" strokeWidth={2} />
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-serif font-semibold text-slate-800">预审结论</div>
+                    <div className="text-xs text-slate-500">提交前自动预审结果</div>
+                  </div>
+                </div>
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold mb-4 border ${
+                  submissionSnapshot.preAudit.overallPassed
+                    ? "bg-success-100 text-success-700 border-success-200"
+                    : "bg-danger-100 text-danger-700 border-danger-200"
+                }`}>
+                  {submissionSnapshot.preAudit.overallPassed ? (
+                    <CheckCircle2 className="w-4 h-4" strokeWidth={2.4} />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4" strokeWidth={2.4} />
+                  )}
+                  {submissionSnapshot.preAudit.overallPassed ? "预审通过" : "预审不通过"}
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="text-center rounded-lg bg-white/60 border border-slate-200 p-2.5">
+                    <div className="font-serif font-bold text-lg text-success-600">{submissionSnapshot.preAudit.passedCount}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">通过</div>
+                  </div>
+                  <div className="text-center rounded-lg bg-white/60 border border-slate-200 p-2.5">
+                    <div className="font-serif font-bold text-lg text-warning-600">{submissionSnapshot.preAudit.warningCount}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">提醒</div>
+                  </div>
+                  <div className="text-center rounded-lg bg-white/60 border border-slate-200 p-2.5">
+                    <div className="font-serif font-bold text-lg text-danger-600">{submissionSnapshot.preAudit.failedCount}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">不通过</div>
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-dashed border-slate-200">
+                  <div className="text-xs text-slate-500 mb-1">结论说明</div>
+                  <div className="text-sm text-slate-700 leading-relaxed">{submissionSnapshot.preAudit.conclusion}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

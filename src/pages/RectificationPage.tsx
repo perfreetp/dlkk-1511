@@ -1,5 +1,6 @@
 
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ClipboardCheck,
   AlertCircle,
@@ -13,6 +14,8 @@ import {
   PlayCircle,
   RotateCcw,
   Calendar,
+  ExternalLink,
+  CheckCircle,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/FormFields";
@@ -27,7 +30,7 @@ import { cn } from "@/components/Layout";
 const STATUS_FLOW = [
   { value: "pending", label: "待整改", Icon: AlertCircle, next: "in_progress", btn: "开始整改", color: "warning" },
   { value: "in_progress", label: "整改中", Icon: PlayCircle, next: "submitted", btn: "提交整改", color: "primary" },
-  { value: "submitted", label: "已提交", Icon: Clock, next: null, btn: null, color: "blue" },
+  { value: "submitted", label: "已提交/待复核", Icon: Clock, next: null, btn: null, color: "blue" },
   { value: "passed", label: "已通过", Icon: CheckCircle2, next: null, btn: null, color: "success" },
   { value: "retry", label: "需再整改", Icon: RotateCcw, next: "in_progress", btn: "重新整改", color: "danger" },
 ] as const;
@@ -212,11 +215,27 @@ function RectificationCard({
   item: TRectificationItem;
   idx: number;
 }) {
-  const { updateRectificationStatus } = useAppStore();
+  const navigate = useNavigate();
+  const { updateRectificationStatus, submitRectificationForReview } = useAppStore();
   const [expanded, setExpanded] = useState(true);
   const daysLeft = daysUntil(item.deadline);
   const currentFlow = STATUS_FLOW.find((s) => s.value === item.status);
   const isUrgent = daysLeft <= 5 && item.status !== "passed";
+
+  const handleNavigate = () => {
+    if (!item.relatedPage) return;
+    switch (item.relatedPage) {
+      case "basic-info":
+        navigate("/basic-info");
+        break;
+      case "indicators":
+        navigate("/indicators");
+        break;
+      case "materials":
+        navigate("/materials");
+        break;
+    }
+  };
 
   return (
     <div
@@ -277,6 +296,24 @@ function RectificationCard({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {item.relatedPage && (item.status === "pending" || item.status === "in_progress") && (
+            <button
+              onClick={handleNavigate}
+              className="btn btn-secondary text-xs"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              去处理
+            </button>
+          )}
+          {item.status === "in_progress" && (
+            <button
+              onClick={() => submitRectificationForReview(item.id)}
+              className="btn btn-primary text-xs"
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              提交复核
+            </button>
+          )}
           {currentFlow?.btn && (
             <button
               onClick={() =>
@@ -405,6 +442,7 @@ function RectificationCard({
 }
 
 export default function RectificationPage() {
+  const navigate = useNavigate();
   const { rectifications } = useAppStore();
   const [filter, setFilter] = useState<"all" | TRectificationItem["status"]>(
     "all"
@@ -436,7 +474,7 @@ export default function RectificationPage() {
     { value: "all", label: "全部", count: stats.total, icon: ClipboardCheck, color: "primary" },
     { value: "pending", label: "待整改", count: stats.pending, icon: AlertCircle, color: "warning" },
     { value: "in_progress", label: "整改中", count: stats.inProgress, icon: PlayCircle, color: "primary" },
-    { value: "submitted", label: "审核中", count: stats.submitted, icon: Clock, color: "blue" },
+    { value: "submitted", label: "已提交/待复核", count: stats.submitted, icon: Clock, color: "blue" },
     { value: "passed", label: "已通过", count: stats.passed, icon: CheckCircle2, color: "success" },
   ];
 
@@ -461,7 +499,7 @@ export default function RectificationPage() {
               </div>
             </div>
             <div className="card !p-3 !border-blue-200 bg-blue-50/30">
-              <div className="text-[11px] text-blue-700 font-medium">审核中</div>
+              <div className="text-[11px] text-blue-700 font-medium">已提交/待复核</div>
               <div className="font-mono font-bold text-2xl text-blue-700">
                 {stats.submitted}
               </div>

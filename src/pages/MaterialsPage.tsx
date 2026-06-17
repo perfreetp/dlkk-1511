@@ -101,18 +101,53 @@ export default function MaterialsPage() {
     );
   };
 
+  const isFileContentAvailable = (file: MaterialFile): boolean => {
+    if (file.contentAvailable) return true;
+    try {
+      const stored = localStorage.getItem("minjian-material-" + file.id);
+      return !!stored && stored.length > 0;
+    } catch {
+      return false;
+    }
+  };
+
   const handleDownload = (file: MaterialFile) => {
-    const blob = new Blob(["[模拟文件内容] " + file.name], {
-      type: file.type,
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    let base64: string | null = null;
+    try {
+      base64 = localStorage.getItem("minjian-material-" + file.id);
+    } catch {
+      base64 = null;
+    }
+
+    if (!base64 && !file.contentAvailable) {
+      alert("文件内容不可用，请重新上传");
+      return;
+    }
+
+    if (!base64) {
+      alert("文件内容不可用，请重新上传");
+      return;
+    }
+
+    try {
+      const base64Data = base64.split(",")[1] || base64;
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: file.type || "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("文件下载失败，请重新上传后再试");
+    }
   };
 
   const handleRemove = (categoryId: string, fileId: string, fileName: string) => {
@@ -373,8 +408,13 @@ export default function MaterialsPage() {
                           </button>
                           <button
                             onClick={() => handleDownload(file)}
-                            className="p-2 rounded-lg hover:bg-primary-50 text-slate-500 hover:text-primary-600"
-                            title="下载"
+                            className={cn(
+                              "p-2 rounded-lg transition-colors",
+                              isFileContentAvailable(file)
+                                ? "hover:bg-primary-50 text-slate-500 hover:text-primary-600"
+                                : "text-slate-300 cursor-not-allowed"
+                            )}
+                            title={isFileContentAvailable(file) ? "下载" : "文件内容不可用，请重新上传"}
                           >
                             <Download className="w-4 h-4" />
                           </button>
@@ -459,19 +499,33 @@ export default function MaterialsPage() {
             </div>
             <div className="card-body space-y-4">
               <div className="aspect-video rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center mx-auto mb-2">
-                    {getFileIcon(previewFile.type)}
+                {!isFileContentAvailable(previewFile) ? (
+                  <div className="text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-danger-50 shadow-sm flex items-center justify-center mx-auto mb-2">
+                      <AlertCircle className="w-7 h-7 text-danger-500" />
+                    </div>
+                    <div className="text-sm text-danger-600 font-medium">
+                      文件内容不可用
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      该文件内容已丢失，请删除后重新上传
+                    </div>
                   </div>
-                  <div className="text-sm text-slate-500">
-                    {previewFile.type.startsWith("image/")
-                      ? "图片预览"
-                      : "文件预览不可用"}
+                ) : (
+                  <div className="text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center mx-auto mb-2">
+                      {getFileIcon(previewFile.type)}
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      {previewFile.type.startsWith("image/")
+                        ? "图片预览"
+                        : "文件预览不可用"}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      可下载后在本地查看
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    可下载后在本地查看
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -519,10 +573,14 @@ export default function MaterialsPage() {
               </button>
               <button
                 onClick={() => handleDownload(previewFile)}
-                className="btn-primary"
+                disabled={!isFileContentAvailable(previewFile)}
+                className={cn(
+                  "btn-primary",
+                  !isFileContentAvailable(previewFile) && "opacity-50 cursor-not-allowed"
+                )}
               >
                 <Download className="w-4 h-4" />
-                下载文件
+                {isFileContentAvailable(previewFile) ? "下载文件" : "文件内容不可用"}
               </button>
             </div>
           </div>

@@ -12,6 +12,14 @@ import {
   Trash2,
   Plus,
   AlertTriangle,
+  ClipboardCheck,
+  Search,
+  X,
+  ExternalLink,
+  XCircle,
+  Clock,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader, FormField, Input, Select, TagListInput } from "@/components/FormFields";
@@ -20,14 +28,25 @@ import {
   PROPERTY_TYPE_OPTIONS,
   ChargingItem,
   formatDate,
+  PreAuditResult,
 } from "@/types";
 import { cn } from "@/components/Layout";
 
 export default function BasicInfoPage() {
-  const { schoolInfo, updateSchoolInfo, applyLastYearData, setCurrentStage } =
-    useAppStore();
+  const {
+    schoolInfo,
+    updateSchoolInfo,
+    applyLastYearData,
+    setCurrentStage,
+    preAuditResult,
+    runPreAuditCheck,
+    updateChargingItem,
+    addChargingItem,
+    removeChargingItem,
+  } = useAppStore();
   const consistencyCheck = schoolInfo.consistencyCheck;
   const [showApplyModal, setShowApplyModal] = useState(false);
+  const [showPreAuditPanel, setShowPreAuditPanel] = useState(true);
   const chargingItems = schoolInfo.chargingItems;
 
   const getFieldIssue = (field: string) =>
@@ -39,36 +58,6 @@ export default function BasicInfoPage() {
 
   const handleStageChange = (value: string) => {
     setCurrentStage(value as any);
-  };
-
-  const addChargingItem = () => {
-    const newItem: ChargingItem = {
-      id: `ci-new-${Date.now()}`,
-      name: "",
-      standard: "",
-      unit: "",
-      approvalNumber: "",
-    };
-    updateSchoolInfo({ chargingItems: [...chargingItems, newItem] });
-  };
-
-  const removeChargingItem = (id: string) => {
-    if (chargingItems.length <= 1) return;
-    updateSchoolInfo({
-      chargingItems: chargingItems.filter((c) => c.id !== id),
-    });
-  };
-
-  const updateChargingItem = (
-    id: string,
-    field: keyof ChargingItem,
-    value: string
-  ) => {
-    updateSchoolInfo({
-      chargingItems: chargingItems.map((c) =>
-      c.id === id ? { ...c, [field]: value } : c
-    ),
-    });
   };
 
   const handleSave = () => {
@@ -167,6 +156,163 @@ export default function BasicInfoPage() {
             </div>
           </div>
         )}
+
+      <div className="card border-slate-200 animate-fade-in-up stagger-2">
+        <div
+          className="card-header cursor-pointer select-none"
+          onClick={() => setShowPreAuditPanel(!showPreAuditPanel)}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-info-100 text-info-700 flex items-center justify-center">
+              <ClipboardCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-serif font-semibold text-slate-800">
+                申报前预审
+              </div>
+              <div className="text-xs text-slate-500">
+                Pre-Submission Audit
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                runPreAuditCheck();
+              }}
+              className="btn-primary text-xs !py-1.5 !px-3"
+            >
+              <Search className="w-3.5 h-3.5" />
+              开始预审
+            </button>
+            {showPreAuditPanel ? (
+              <ChevronDown className="w-5 h-5 text-slate-400" />
+            ) : (
+              <ChevronRight className="w-5 h-5 text-slate-400" />
+            )}
+          </div>
+        </div>
+        {showPreAuditPanel && (
+          <div className="card-body space-y-4">
+            {preAuditResult ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-success-50 border border-success-200 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-success-600" />
+                    <span className="text-success-700 font-medium">
+                      通过 {preAuditResult.passedCount}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-warning-50 border border-warning-200 text-sm">
+                    <AlertTriangle className="w-4 h-4 text-warning-600" />
+                    <span className="text-warning-700 font-medium">
+                      提醒 {preAuditResult.warningCount}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-danger-50 border border-danger-200 text-sm">
+                    <XCircle className="w-4 h-4 text-danger-600" />
+                    <span className="text-danger-700 font-medium">
+                      不通过 {preAuditResult.failedCount}
+                    </span>
+                  </div>
+                  <div className="flex-1" />
+                  <div
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-sm font-semibold",
+                      preAuditResult.overallPassed
+                        ? "bg-success-100 text-success-700 border border-success-200"
+                        : "bg-danger-100 text-danger-700 border border-danger-200"
+                    )}
+                  >
+                    {preAuditResult.overallPassed ? "预审通过" : "预审不通过"}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {preAuditResult.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-xl border bg-white"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                            item.status === "passed" &&
+                              "bg-success-100 text-success-600",
+                            item.status === "warning" &&
+                              "bg-warning-100 text-warning-600",
+                            item.status === "failed" &&
+                              "bg-danger-100 text-danger-600",
+                            item.status === "pending" &&
+                              "bg-slate-100 text-slate-500"
+                          )}
+                        >
+                          {item.status === "passed" && (
+                            <CheckCircle2 className="w-4 h-4" />
+                          )}
+                          {item.status === "warning" && (
+                            <AlertTriangle className="w-4 h-4" />
+                          )}
+                          {item.status === "failed" && (
+                            <XCircle className="w-4 h-4" />
+                          )}
+                          {item.status === "pending" && (
+                            <Clock className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                              {item.categoryLabel}
+                            </span>
+                            <span className="font-medium text-slate-800">
+                              {item.title}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                            {item.message}
+                          </p>
+                          {item.suggestion && (
+                            <p className="mt-1.5 text-sm text-primary-600 leading-relaxed">
+                              💡 {item.suggestion}
+                            </p>
+                          )}
+                          {item.relatedPage && (
+                            <div className="mt-2">
+                              <button className="btn-secondary text-xs !py-1 !px-2.5">
+                                <ExternalLink className="w-3 h-3" />
+                                去处理
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-xs text-slate-400 text-right">
+                  生成时间：{preAuditResult.generatedAt}
+                </div>
+              </>
+            ) : (
+              <div className="py-12 text-center">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                  <ClipboardCheck className="w-8 h-8" />
+                </div>
+                <div className="text-slate-600 font-medium">
+                  尚未进行预审
+                </div>
+                <div className="text-sm text-slate-400 mt-1">
+                  点击上方「开始预审」按钮，系统将自动检查申报材料的完整性与合规性
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <section className="card animate-fade-in-up stagger-1">
         <div className="card-header">
@@ -455,7 +601,7 @@ export default function BasicInfoPage() {
                         <input
                           value={item.name}
                           onChange={(e) =>
-                            updateChargingItem(item.id, "name", e.target.value)
+                            updateChargingItem(item.id, { name: e.target.value })
                           }
                           placeholder="例如：学杂费"
                           className="w-full input-base !py-1.5 text-sm"
@@ -467,19 +613,26 @@ export default function BasicInfoPage() {
                           onChange={(e) =>
                             updateChargingItem(
                               item.id,
-                              "standard",
-                              e.target.value
+                              { standard: e.target.value }
                             )
                           }
                           placeholder="18000"
-                          className="w-full input-base !py-1.5 text-sm font-mono"
+                          className={cn(
+                            "w-full input-base !py-1.5 text-sm font-mono",
+                            getFieldIssue(`chargingItems_${item.name}_standard`) && "input-error"
+                          )}
                         />
+                        {getFieldIssue(`chargingItems_${item.name}_standard`) && (
+                          <div className="mt-1 text-xs text-danger-600">
+                            {getFieldIssue(`chargingItems_${item.name}_standard`)?.message}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <input
                           value={item.unit}
                           onChange={(e) =>
-                            updateChargingItem(item.id, "unit", e.target.value)
+                            updateChargingItem(item.id, { unit: e.target.value })
                           }
                           placeholder="元/学期"
                           className="w-full input-base !py-1.5 text-sm"
@@ -491,13 +644,20 @@ export default function BasicInfoPage() {
                           onChange={(e) =>
                             updateChargingItem(
                               item.id,
-                              "approvalNumber",
-                              e.target.value
+                              { approvalNumber: e.target.value }
                             )
                           }
                           placeholder="浦发改价[2023]89号"
-                          className="w-full input-base !py-1.5 text-sm font-mono"
+                          className={cn(
+                            "w-full input-base !py-1.5 text-sm font-mono",
+                            getFieldIssue(`chargingItems_${item.name}_approvalNumber`) && "input-error"
+                          )}
                         />
+                        {getFieldIssue(`chargingItems_${item.name}_approvalNumber`) && (
+                          <div className="mt-1 text-xs text-danger-600">
+                            {getFieldIssue(`chargingItems_${item.name}_approvalNumber`)?.message}
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-2">
                         <button

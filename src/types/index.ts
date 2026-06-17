@@ -104,6 +104,8 @@ export interface MaterialFile {
   uploader: string;
   status: "uploaded" | "checking" | "passed" | "rejected";
   previewUrl?: string;
+  contentBase64?: string;
+  contentAvailable?: boolean;
 }
 
 export interface MaterialCategory {
@@ -145,6 +147,8 @@ export interface RectificationItem {
   updatedAt: string;
   comments: RectificationComment[];
   diffData?: DiffItem[];
+  relatedPage?: "basic-info" | "indicators" | "materials" | "progress";
+  relatedField?: string;
 }
 
 export interface ProgressOverview {
@@ -227,7 +231,7 @@ export const RECTIFICATION_STATUS_MAP: Record<
 > = {
   pending: { label: "待整改", color: "bg-warning-100 text-warning-700" },
   in_progress: { label: "整改中", color: "bg-primary-100 text-primary-700" },
-  submitted: { label: "已提交", color: "bg-blue-100 text-blue-700" },
+  submitted: { label: "已提交/待复核", color: "bg-blue-100 text-blue-700" },
   passed: { label: "已通过", color: "bg-success-100 text-success-700" },
   retry: { label: "需再整改", color: "bg-danger-100 text-danger-700" },
 };
@@ -269,3 +273,69 @@ export const daysUntil = (dateStr: string): number => {
   const now = new Date().getTime();
   return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
 };
+
+export type PreAuditCategory =
+  | "license"
+  | "legal"
+  | "building"
+  | "charging"
+  | "indicators"
+  | "materials";
+
+export interface PreAuditItem {
+  id: string;
+  category: PreAuditCategory;
+  categoryLabel: string;
+  title: string;
+  status: "passed" | "warning" | "failed" | "pending";
+  message: string;
+  suggestion?: string;
+  relatedPage?: "basic-info" | "indicators" | "materials";
+  relatedField?: string;
+}
+
+export interface PreAuditResult {
+  totalItems: number;
+  passedCount: number;
+  warningCount: number;
+  failedCount: number;
+  pendingCount: number;
+  overallPassed: boolean;
+  items: PreAuditItem[];
+  generatedAt: string;
+}
+
+export interface SubmissionSnapshot {
+  snapshotTime: string;
+  schoolInfo: {
+    schoolName: string;
+    schoolStage: SchoolStage;
+    licenseNumber: string;
+    legalPerson: string;
+    buildingArea: number;
+    chargingItemCount: number;
+    consistencyPassed: boolean;
+    consistencyIssues: number;
+  };
+  indicators: {
+    totalFields: number;
+    filledFields: number;
+    completionRate: number;
+    errorFields: number;
+  };
+  materials: {
+    totalCategories: number;
+    requiredCategories: number;
+    totalUploaded: number;
+    totalRequired: number;
+    missingCount: number;
+    categoryList: { name: string; uploaded: number; required: number }[];
+  };
+  preAudit: {
+    overallPassed: boolean;
+    passedCount: number;
+    warningCount: number;
+    failedCount: number;
+    conclusion: string;
+  };
+}

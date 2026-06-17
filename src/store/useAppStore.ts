@@ -14,6 +14,9 @@ import {
   SchoolStage,
   ConsistencyIssue,
   ChargingItem,
+  PreAuditResult,
+  PreAuditItem,
+  SubmissionSnapshot,
 } from "@/types";
 
 // ==================== 备案基准数据（用于一致性校验） ====================
@@ -81,7 +84,7 @@ function runConsistencyCheck(info: SchoolBasicInfo): ConsistencyIssue[] {
     });
   }
 
-  // 收费项目一致性
+  // 收费项目一致性（包括项目名、收费标准、备案文号）
   const licensedNames = licensedBaseline.chargingItems.map((c) => c.name);
   const currentNames = info.chargingItems.map((c) => c.name);
   const missingCharges = licensedNames.filter((n) => !currentNames.includes(n));
@@ -101,6 +104,36 @@ function runConsistencyCheck(info: SchoolBasicInfo): ConsistencyIssue[] {
         (extraCharges.length > 0 ? `新增未备案收费项：${extraCharges.join("、")}；` : "") +
         "请确保收费项目与发改委备案文件一致。",
     });
+  }
+
+  // 每个收费项目的收费标准和备案文号校验
+  for (const licensed of licensedBaseline.chargingItems) {
+    const current = info.chargingItems.find((c) => c.name === licensed.name);
+    if (!current) continue;
+
+    // 校验收费标准
+    if (current.standard !== licensed.standard) {
+      issues.push({
+        field: `chargingItems_${licensed.name}_standard`,
+        fieldLabel: `${licensed.name} - 收费标准`,
+        currentValue: current.standard || "(空)",
+        expectedValue: licensed.standard,
+        severity: "warning",
+        message: `${licensed.name}的收费标准【${current.standard || "空"}】与备案值【${licensed.standard}】不一致，请核对发改委备案文件。`,
+      });
+    }
+
+    // 校验备案文号
+    if (current.approvalNumber !== licensed.approvalNumber) {
+      issues.push({
+        field: `chargingItems_${licensed.name}_approvalNumber`,
+        fieldLabel: `${licensed.name} - 备案文号`,
+        currentValue: current.approvalNumber || "(空)",
+        expectedValue: licensed.approvalNumber,
+        severity: "warning",
+        message: `${licensed.name}的备案文号【${current.approvalNumber || "空"}】与备案值【${licensed.approvalNumber}】不一致，请确认是否已办理备案变更。`,
+      });
+    }
   }
 
   return issues;
@@ -1296,6 +1329,8 @@ const mockRectifications: RectificationItem[] = [
     responsible: "李经办",
     createdAt: "2026-06-15 09:30",
     updatedAt: "2026-06-17 15:12",
+    relatedPage: "basic-info",
+    relatedField: "buildingArea",
     diffData: [
       { field: "校舍建筑面积", oldValue: "20000 ㎡", newValue: "18500 ㎡", changed: true },
       { field: "产权性质", oldValue: "租赁", newValue: "租赁", changed: false },
@@ -1315,6 +1350,8 @@ const mockRectifications: RectificationItem[] = [
     responsible: "李经办",
     createdAt: "2026-06-15 09:32",
     updatedAt: "2026-06-15 09:32",
+    relatedPage: "indicators",
+    relatedField: "f8",
     comments: [{ id: "rc3", author: "赵审查", role: "教育局审查员", content: "必填项缺失，请尽快补充。", createdAt: "2026-06-15 09:32" }],
   },
   {
@@ -1327,6 +1364,8 @@ const mockRectifications: RectificationItem[] = [
     responsible: "李经办",
     createdAt: "2026-06-12 14:20",
     updatedAt: "2026-06-14 10:15",
+    relatedPage: "materials",
+    relatedField: "m1",
     comments: [
       { id: "rc4", author: "钱审查", role: "教育局审查员", content: "缺少收费许可证，请补充。", createdAt: "2026-06-12 14:20" },
       { id: "rc5", author: "李经办", role: "学校经办人", content: "已上传浦发改价[2023]89-91号三份备案表，请查收。", createdAt: "2026-06-13 16:45" },
@@ -1408,6 +1447,8 @@ function saveToStorage(state: AppState) {
       rectifications,
       checklist,
       timeline,
+      preAuditResult,
+      submissionSnapshot,
     } = state;
     localStorage.setItem(
       STORAGE_KEY,
@@ -1419,6 +1460,8 @@ function saveToStorage(state: AppState) {
         rectifications,
         checklist,
         timeline,
+        preAuditResult,
+        submissionSnapshot,
       })
     );
   } catch {
@@ -1567,6 +1610,245 @@ function computeChecklistRemark(materials: MaterialCategory[]): string {
   return missing.join("、") + "，需补充。";
 }
 
+// ==================== 预审面板：汇总所有检查项 ====================
+function runPreAudit(
+  schoolInfo: SchoolBasicInfo,
+  indicatorFields: IndicatorField[],
+  materials: MaterialCategory[]
+): PreAuditResult {
+  const items: PreAuditItem[] = [];
+  const issues = schoolInfo.consistencyCheck.issues;
+
+  // 1. 办学许可证校验
+  const licenseIssue = issues.find((i) => i.field === "licenseNumber");
+  items.push({
+    id: "pa-license",
+    category: "license",
+    categoryLabel: "办学许可",
+    title: "办学许可证号一致性",
+    status: licenseIssue ? "failed" : "passed",
+    message: licenseIssue
+      ? licenseIssue.message
+      : "办学许可证号与备案登记一致。",
+    relatedPage: "basic-info",
+    relatedField: "licenseNumber",
+  });
+
+  // 2. 法人信息校验
+  const legalPersonIssue = issues.find((i) => i.field === "legalPerson");
+  const legalIdIssue = issues.find((i) => i.field === "legalPersonIdCard");
+  const legalFailed = legalPersonIssue || legalIdIssue;
+  items.push({
+    id: "pa-legal",
+    category: "legal",
+    categoryLabel: "法人信息",
+    title: "法人代表信息一致性",
+    status: legalFailed ? (legalIdIssue ? "failed" : "warning") : "passed",
+    message: legalFailed
+      ? [legalPersonIssue?.message, legalIdIssue?.message].filter(Boolean).join(" ")
+      : "法人代表姓名与身份证号与备案登记一致。",
+    relatedPage: "basic-info",
+    relatedField: "legalPerson",
+  });
+
+  // 3. 校舍信息校验
+  const buildingIssue = issues.find((i) => i.field === "buildingArea");
+  items.push({
+    id: "pa-building",
+    category: "building",
+    categoryLabel: "校舍信息",
+    title: "校舍建筑面积一致性",
+    status: buildingIssue ? "warning" : "passed",
+    message: buildingIssue
+      ? buildingIssue.message
+      : `校舍建筑面积 ${schoolInfo.buildingArea}㎡ 与备案一致。`,
+    relatedPage: "basic-info",
+    relatedField: "buildingArea",
+    suggestion: buildingIssue
+      ? "如有改扩建请上传备案文件，如属数据录入错误请修正。"
+      : undefined,
+  });
+
+  // 4. 收费备案校验（汇总所有收费相关问题）
+  const chargingIssues = issues.filter((i) => i.field.startsWith("charging"));
+  items.push({
+    id: "pa-charging",
+    category: "charging",
+    categoryLabel: "收费备案",
+    title: "收费项目与备案一致性",
+    status: chargingIssues.length > 0 ? "warning" : "passed",
+    message:
+      chargingIssues.length > 0
+        ? chargingIssues.map((i) => i.message).join(" ")
+        : `已备案的 ${licensedBaseline.chargingItems.length} 项收费项目、标准及文号全部一致。`,
+    relatedPage: "basic-info",
+    relatedField: "chargingItems",
+    suggestion:
+      chargingIssues.length > 0
+        ? "请按照发改委备案文件核对收费项目名称、收费标准和备案文号。"
+        : undefined,
+  });
+
+  // 5. 指标空缺检查
+  let emptyCount = 0;
+  const emptyFields: string[] = [];
+  for (const f of indicatorFields) {
+    const isEmpty =
+      f.value === undefined ||
+      f.value === null ||
+      f.value === "" ||
+      (typeof f.value === "number" && isNaN(f.value));
+    if (f.required && isEmpty) {
+      emptyCount++;
+      if (emptyFields.length < 3) emptyFields.push(f.label);
+    }
+  }
+  items.push({
+    id: "pa-indicators",
+    category: "indicators",
+    categoryLabel: "指标填报",
+    title: "必填指标完成情况",
+    status: emptyCount > 0 ? "failed" : "passed",
+    message:
+      emptyCount > 0
+        ? `尚有 ${emptyCount} 项必填指标未填写${
+            emptyFields.length > 0 ? `（${emptyFields.join("、")}等）` : ""
+          }。`
+        : `全部 ${indicatorFields.filter((f) => f.required).length} 项必填指标已完成填写。`,
+    relatedPage: "indicators",
+  });
+
+  // 6. 材料缺项检查
+  let totalMissing = 0;
+  const missingCats: string[] = [];
+  for (const m of materials) {
+    if (m.required) {
+      const diff = Math.max(0, m.requiredCount - m.uploadedCount);
+      if (diff > 0) {
+        totalMissing += diff;
+        missingCats.push(m.name);
+      }
+    }
+  }
+  items.push({
+    id: "pa-materials",
+    category: "materials",
+    categoryLabel: "材料上传",
+    title: "必传材料完成情况",
+    status: totalMissing > 0 ? "failed" : "passed",
+    message:
+      totalMissing > 0
+        ? `${missingCats.join("、")} 共缺少 ${totalMissing} 份必传材料。`
+        : "所有必传佐证材料已上传完成。",
+    relatedPage: "materials",
+    suggestion: totalMissing > 0 ? "请补充缺失的必传材料后再提交。" : undefined,
+  });
+
+  const passedCount = items.filter((i) => i.status === "passed").length;
+  const warningCount = items.filter((i) => i.status === "warning").length;
+  const failedCount = items.filter((i) => i.status === "failed").length;
+  const pendingCount = items.filter((i) => i.status === "pending").length;
+  const overallPassed = failedCount === 0;
+
+  return {
+    totalItems: items.length,
+    passedCount,
+    warningCount,
+    failedCount,
+    pendingCount,
+    overallPassed,
+    items,
+    generatedAt: new Date().toLocaleString("zh-CN"),
+  };
+}
+
+// ==================== 生成申报快照 ====================
+function generateSubmissionSnapshot(
+  schoolInfo: SchoolBasicInfo,
+  indicatorFields: IndicatorField[],
+  materials: MaterialCategory[],
+  preAudit: PreAuditResult
+): SubmissionSnapshot {
+  const totalFields = indicatorFields.length;
+  const filledFields = indicatorFields.filter((f) => {
+    const isEmpty =
+      f.value === undefined ||
+      f.value === null ||
+      f.value === "" ||
+      (typeof f.value === "number" && isNaN(f.value));
+    return !isEmpty;
+  }).length;
+  const errorFields = indicatorFields.filter(
+    (f) =>
+      f.required &&
+      (f.value === undefined ||
+        f.value === null ||
+        f.value === "" ||
+        (typeof f.value === "number" && isNaN(f.value)))
+  ).length;
+
+  let totalUploaded = 0;
+  let totalRequired = 0;
+  let requiredCategories = 0;
+  const categoryList: { name: string; uploaded: number; required: number }[] = [];
+  for (const m of materials) {
+    if (m.required) {
+      requiredCategories++;
+      totalRequired += m.requiredCount;
+      totalUploaded += Math.min(m.uploadedCount, m.requiredCount);
+    }
+    categoryList.push({
+      name: m.name,
+      uploaded: m.uploadedCount,
+      required: m.requiredCount,
+    });
+  }
+
+  let conclusion = "预审通过，可以提交";
+  if (preAudit.failedCount > 0) {
+    conclusion = `预审发现 ${preAudit.failedCount} 项严重问题，请处理后再提交`;
+  } else if (preAudit.warningCount > 0) {
+    conclusion = `预审有 ${preAudit.warningCount} 项提醒事项，建议核对后提交`;
+  }
+
+  return {
+    snapshotTime: new Date().toLocaleString("zh-CN"),
+    schoolInfo: {
+      schoolName: schoolInfo.schoolName,
+      schoolStage: schoolInfo.schoolStage,
+      licenseNumber: schoolInfo.licenseNumber,
+      legalPerson: schoolInfo.legalPerson,
+      buildingArea: schoolInfo.buildingArea,
+      chargingItemCount: schoolInfo.chargingItems.filter(
+        (c) => c.name && c.name.trim()
+      ).length,
+      consistencyPassed: schoolInfo.consistencyCheck.passed,
+      consistencyIssues: schoolInfo.consistencyCheck.issues.length,
+    },
+    indicators: {
+      totalFields,
+      filledFields,
+      completionRate: totalFields ? Math.round((filledFields / totalFields) * 100) : 0,
+      errorFields,
+    },
+    materials: {
+      totalCategories: materials.length,
+      requiredCategories,
+      totalUploaded,
+      totalRequired,
+      missingCount: Math.max(0, totalRequired - totalUploaded),
+      categoryList,
+    },
+    preAudit: {
+      overallPassed: preAudit.overallPassed,
+      passedCount: preAudit.passedCount,
+      warningCount: preAudit.warningCount,
+      failedCount: preAudit.failedCount,
+      conclusion,
+    },
+  };
+}
+
 // ==================== AppState 接口 ====================
 interface AppState {
   schoolInfo: SchoolBasicInfo;
@@ -1580,17 +1862,24 @@ interface AppState {
   checklist: ChecklistItem[];
   timeline: TimelineItem[];
   receipt: InspectionReceipt;
+  preAuditResult: PreAuditResult | null;
+  submissionSnapshot: SubmissionSnapshot | null;
   setCurrentStage: (stage: SchoolStage) => void;
   updateSchoolInfo: (patch: Partial<SchoolBasicInfo>) => void;
+  updateChargingItem: (id: string, patch: Partial<ChargingItem>) => void;
+  addChargingItem: () => void;
+  removeChargingItem: (id: string) => void;
   updateIndicatorField: (fieldId: string, value: any) => void;
   addMaterialFile: (categoryId: string, file: File) => void;
   removeMaterialFile: (categoryId: string, fileId: string) => void;
   updateRectificationStatus: (id: string, status: RectificationItem["status"]) => void;
+  submitRectificationForReview: (id: string) => void;
   addRectificationComment: (id: string, content: string) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   toggleChecklistItem: (id: string) => void;
   applyLastYearData: () => void;
+  runPreAuditCheck: () => PreAuditResult;
   submitInspection: () => void;
   refreshDerivedData: () => void;
 }
@@ -1646,6 +1935,9 @@ function getInitialState() {
     if (cl3) cl3.remark = materialRemark;
   }
 
+  const preAuditResult: PreAuditResult | null = saved?.preAuditResult || null;
+  const submissionSnapshot: SubmissionSnapshot | null = saved?.submissionSnapshot || null;
+
   return {
     schoolInfo,
     indicatorCategories: mockIndicatorCategories,
@@ -1661,6 +1953,8 @@ function getInitialState() {
     checklist,
     timeline,
     receipt: mockReceipt,
+    preAuditResult,
+    submissionSnapshot,
   };
 }
 
@@ -1780,26 +2074,29 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     // 添加材料文件（触发通知、进度、审核清单备注更新）
-    addMaterialFile: (categoryId, file) =>
-      set((s) => {
-        const now = new Date();
-        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-        const newFile = {
-          id: `f-new-${Date.now()}`,
-          categoryId,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          uploadTime: timeStr,
-          uploader: "李经办",
-          status: "uploaded" as const,
-        };
+    addMaterialFile: (categoryId, file) => {
+      const now = new Date();
+      const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const fileId = `f-new-${Date.now()}`;
+      const baseFile = {
+        id: fileId,
+        categoryId,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        uploadTime: timeStr,
+        uploader: "李经办",
+        status: "uploaded" as const,
+        contentAvailable: false,
+      };
 
+      // 先立即添加文件（不带内容），更新 UI
+      set((s) => {
         const materials = s.materials.map((c) =>
           c.id === categoryId
             ? {
                 ...c,
-                files: [...c.files, newFile],
+                files: [...c.files, baseFile],
                 uploadedCount: c.uploadedCount + 1,
               }
             : c
@@ -1819,7 +2116,6 @@ export const useAppStore = create<AppState>((set, get) => {
           s.schoolInfo.consistencyCheck.passed
         );
 
-        // 更新审核清单备注
         const remark = computeChecklistRemark(materials);
         const checklist = s.checklist.map((c) =>
           c.id === "cl3" ? { ...c, remark } : c
@@ -1833,11 +2129,48 @@ export const useAppStore = create<AppState>((set, get) => {
         };
         saveToStorage({ ...s, ...next });
         return next;
-      }),
+      });
+
+      // 异步读取文件内容为 base64，然后保存
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        try {
+          // 尝试保存到 localStorage 专用 key
+          const storageKey = `minjian-material-${fileId}`;
+          localStorage.setItem(storageKey, base64);
+          // 更新文件记录，标记内容可用
+          set((s) => {
+            const materials = s.materials.map((c) =>
+              c.id === categoryId
+                ? {
+                    ...c,
+                    files: c.files.map((f) =>
+                      f.id === fileId ? { ...f, contentAvailable: true } : f
+                    ),
+                  }
+                : c
+            );
+            const next = { materials };
+            saveToStorage({ ...s, ...next });
+            return next;
+          });
+        } catch {
+          // localStorage 空间不足，忽略
+        }
+      };
+      reader.readAsDataURL(file);
+    },
 
     // 删除材料文件
     removeMaterialFile: (categoryId, fileId) =>
       set((s) => {
+        // 清除 localStorage 中的文件内容
+        try {
+          localStorage.removeItem(`minjian-material-${fileId}`);
+        } catch {
+          // ignore
+        }
         const materials = s.materials.map((c) =>
           c.id === categoryId
             ? {
@@ -1997,12 +2330,178 @@ export const useAppStore = create<AppState>((set, get) => {
         return next;
       }),
 
+    // 更新单个收费项目
+    updateChargingItem: (id, patch) =>
+      set((s) => {
+        const newInfo = {
+          ...s.schoolInfo,
+          chargingItems: s.schoolInfo.chargingItems.map((c) =>
+            c.id === id ? { ...c, ...patch } : c
+          ),
+        };
+        const issues = runConsistencyCheck(newInfo);
+        newInfo.consistencyCheck = { passed: issues.length === 0, issues };
+
+        const notifications = computeNotifications(
+          s.indicatorFields[s.currentStage],
+          s.materials,
+          issues,
+          s.currentStage
+        );
+
+        const overallPercentage = computeOverallPercentage(
+          s.indicatorFields[s.currentStage],
+          s.materials,
+          s.checklist,
+          issues.length === 0
+        );
+
+        const next = {
+          schoolInfo: newInfo,
+          notifications,
+          progress: { ...s.progress, overallPercentage },
+        };
+        saveToStorage({ ...s, ...next });
+        return next;
+      }),
+
+    // 新增收费项目
+    addChargingItem: () =>
+      set((s) => {
+        const newItem: ChargingItem = {
+          id: `ci-${Date.now()}`,
+          name: "",
+          standard: "",
+          unit: "元/学期",
+          approvalNumber: "",
+        };
+        const newInfo = {
+          ...s.schoolInfo,
+          chargingItems: [...s.schoolInfo.chargingItems, newItem],
+        };
+        const issues = runConsistencyCheck(newInfo);
+        newInfo.consistencyCheck = { passed: issues.length === 0, issues };
+
+        const notifications = computeNotifications(
+          s.indicatorFields[s.currentStage],
+          s.materials,
+          issues,
+          s.currentStage
+        );
+
+        const overallPercentage = computeOverallPercentage(
+          s.indicatorFields[s.currentStage],
+          s.materials,
+          s.checklist,
+          issues.length === 0
+        );
+
+        const next = {
+          schoolInfo: newInfo,
+          notifications,
+          progress: { ...s.progress, overallPercentage },
+        };
+        saveToStorage({ ...s, ...next });
+        return next;
+      }),
+
+    // 删除收费项目
+    removeChargingItem: (id) =>
+      set((s) => {
+        const newInfo = {
+          ...s.schoolInfo,
+          chargingItems: s.schoolInfo.chargingItems.filter((c) => c.id !== id),
+        };
+        const issues = runConsistencyCheck(newInfo);
+        newInfo.consistencyCheck = { passed: issues.length === 0, issues };
+
+        const notifications = computeNotifications(
+          s.indicatorFields[s.currentStage],
+          s.materials,
+          issues,
+          s.currentStage
+        );
+
+        const overallPercentage = computeOverallPercentage(
+          s.indicatorFields[s.currentStage],
+          s.materials,
+          s.checklist,
+          issues.length === 0
+        );
+
+        const next = {
+          schoolInfo: newInfo,
+          notifications,
+          progress: { ...s.progress, overallPercentage },
+        };
+        saveToStorage({ ...s, ...next });
+        return next;
+      }),
+
+    // 提交整改项待复核
+    submitRectificationForReview: (id) =>
+      set((s) => {
+        const next = {
+          rectifications: s.rectifications.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  status: "submitted" as const,
+                  updatedAt: new Date().toLocaleString("zh-CN"),
+                }
+              : r
+          ),
+          timeline: [
+            ...s.timeline,
+            {
+              id: `t-rect-${Date.now()}`,
+              time: new Date().toLocaleString("zh-CN"),
+              action: "整改项提交复核",
+              operator: "李经办",
+              detail: `整改事项【${s.rectifications.find((r) => r.id === id)?.title}】已完成处理，提交至教育局复核。`,
+              type: "info" as const,
+            },
+          ],
+        };
+        saveToStorage({ ...s, ...next });
+        return next;
+      }),
+
+    // 运行预审检查
+    runPreAuditCheck: () => {
+      const s = get();
+      const result = runPreAudit(
+        s.schoolInfo,
+        s.indicatorFields[s.currentStage],
+        s.materials
+      );
+      const next = { preAuditResult: result };
+      saveToStorage({ ...s, ...next });
+      set(next);
+      return result;
+    },
+
     submitInspection: () => {
       const s = get();
       const allChecked = s.checklist.filter((c) => c.required).every((c) => c.checked);
       if (!allChecked) return;
 
+      // 生成预审结果和申报快照
+      const preAuditResult = runPreAudit(
+        s.schoolInfo,
+        s.indicatorFields[s.currentStage],
+        s.materials
+      );
+      const snapshot = generateSubmissionSnapshot(
+        s.schoolInfo,
+        s.indicatorFields[s.currentStage],
+        s.materials,
+        preAuditResult
+      );
+
       set({
+        preAuditResult,
+        submissionSnapshot: snapshot,
         progress: {
           ...s.progress,
           currentStage: 5,
